@@ -7,12 +7,12 @@ import (
 )
 
 type Agent struct {
-	Mu         sync.Mutex
-	Subs       map[string][]chan string
-	Quit       chan struct{}
-	Closed     bool
-	LogDir     string
-	TopicQueue map[string][]string
+	mu         sync.Mutex
+	subs       map[string][]chan string
+	quit       chan struct{}
+	closed     bool
+	logDir     string
+	topicQueue map[string][]string
 }
 
 func NewAgent(logDir string) *Agent {
@@ -25,37 +25,37 @@ func NewAgent(logDir string) *Agent {
 		log.Fatal(err)
 	}
 	return &Agent{
-		Subs:       make(map[string][]chan string),
-		Quit:       make(chan struct{}),
-		LogDir:     logDir,
-		TopicQueue: make(map[string][]string),
+		subs:       make(map[string][]chan string),
+		quit:       make(chan struct{}),
+		logDir:     logDir,
+		topicQueue: make(map[string][]string),
 	}
 }
 
 func (b *Agent) Publish(topic string, msg string) {
-	b.Mu.Lock()
-	defer b.Mu.Unlock()
-	if b.Closed {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
 		return
 	}
-	logFilePath := b.LogDir + "/" + topic + ".txt"
-	b.TopicQueue[topic] = append(b.TopicQueue[topic], msg)
+	logFilePath := b.logDir + "/" + topic + ".txt"
+	b.topicQueue[topic] = append(b.topicQueue[topic], msg)
 	if err := b.writeToFile(logFilePath, msg); err != nil {
 		log.Println(err)
 	}
-	for _, ch := range b.Subs[topic] {
+	for _, ch := range b.subs[topic] {
 		ch <- msg
 	}
 }
 
 func (b *Agent) Subscribe(topic string) <-chan string {
-	b.Mu.Lock()
-	defer b.Mu.Unlock()
-	if b.Closed {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
 		return nil
 	}
 	ch := make(chan string)
-	b.Subs[topic] = append(b.Subs[topic], ch)
+	b.subs[topic] = append(b.subs[topic], ch)
 	return ch
 }
 
@@ -72,14 +72,14 @@ func (b *Agent) writeToFile(filePath string, msg string) error {
 }
 
 func (b *Agent) Close() {
-	b.Mu.Lock()
-	defer b.Mu.Unlock()
-	if b.Closed {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
 		return
 	}
-	b.Closed = true
-	close(b.Quit)
-	for _, ch := range b.Subs {
+	b.closed = true
+	close(b.quit)
+	for _, ch := range b.subs {
 		for _, sub := range ch {
 			close(sub)
 		}
@@ -88,8 +88,8 @@ func (b *Agent) Close() {
 }
 
 func (b *Agent) saveTopicQueues() {
-	for topic, queue := range b.TopicQueue {
-		filePath := b.LogDir + "/" + topic + ".txt"
+	for topic, queue := range b.topicQueue {
+		filePath := b.logDir + "/" + topic + ".txt"
 		_, err := os.Stat(filePath)
 		fileExists := !os.IsNotExist(err)
 
