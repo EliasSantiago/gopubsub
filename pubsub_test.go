@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -12,7 +13,7 @@ func TestAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
-	agent := NewAgent(tmpDir)
+	agent := NewAgent[any](tmpDir)
 	ch := agent.Subscribe("noticias")
 	go func() {
 		for range ch {
@@ -33,12 +34,12 @@ func TestAgent(t *testing.T) {
 }
 
 func TestAgent_Publish(t *testing.T) {
-	agent := NewAgent("logs")
+	agent := NewAgent[any]("logs")
 	ch := agent.Subscribe("noticias")
 	outCh := make(chan string)
 	go func() {
 		for msg := range ch {
-			outCh <- msg
+			fmt.Println(msg)
 		}
 		close(outCh)
 	}()
@@ -61,7 +62,7 @@ func TestAgent_Publish(t *testing.T) {
 }
 
 func TestAgent_Subscribe(t *testing.T) {
-	agent := NewAgent("logs")
+	agent := NewAgent[any]("logs")
 	ch := agent.Subscribe("noticias")
 	if ch == nil {
 		t.Errorf("Falha ao criar canal de assinatura")
@@ -76,7 +77,7 @@ func TestAgent_Subscribe(t *testing.T) {
 }
 
 func TestAgent_Close(t *testing.T) {
-	agent := NewAgent("logs")
+	agent := NewAgent[any]("logs")
 	agent.Close()
 	ch := agent.Subscribe("noticias")
 	go func() {
@@ -94,7 +95,7 @@ func TestAgent_writeToFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
-	agent := NewAgent(tmpDir)
+	agent := NewAgent[any](tmpDir)
 	filePath := tmpDir + "/test.txt"
 	msg := "Test Message"
 	err = agent.writeToFile(filePath, msg)

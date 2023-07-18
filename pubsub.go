@@ -7,6 +7,10 @@ import (
 	"sync"
 )
 
+type Valor interface {
+	int64 | float64 | string
+}
+
 type Agent[T any] struct {
 	mu         sync.Mutex
 	subs       map[string][]chan T
@@ -33,34 +37,34 @@ func NewAgent[T any](logDir string) *Agent[T] {
 	}
 }
 
-func (b *Agent[T]) Publish(topic string, msg T) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
+func (a *Agent[T]) Publish(topic string, msg T) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed {
 		return
 	}
-	logFilePath := b.logDir + "/" + topic + ".txt"
-	b.topicQueue[topic] = append(b.topicQueue[topic], msg)
-	if err := b.writeToFile(logFilePath, msg); err != nil {
+	logFilePath := a.logDir + "/" + topic + ".txt"
+	a.topicQueue[topic] = append(a.topicQueue[topic], msg)
+	if err := a.writeToFile(logFilePath, msg); err != nil {
 		log.Println(err)
 	}
-	for _, ch := range b.subs[topic] {
+	for _, ch := range a.subs[topic] {
 		ch <- msg
 	}
 }
 
-func (b *Agent[T]) Subscribe(topic string) <-chan T {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
+func (a *Agent[T]) Subscribe(topic string) <-chan T {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed {
 		return nil
 	}
 	ch := make(chan T)
-	b.subs[topic] = append(b.subs[topic], ch)
+	a.subs[topic] = append(a.subs[topic], ch)
 	return ch
 }
 
-func (b *Agent[T]) writeToFile(filePath string, msg T) error {
+func (a *Agent[T]) writeToFile(filePath string, msg T) error {
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -72,31 +76,31 @@ func (b *Agent[T]) writeToFile(filePath string, msg T) error {
 	return nil
 }
 
-func (b *Agent[T]) Close() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
+func (a *Agent[T]) Close() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed {
 		return
 	}
-	b.closed = true
-	close(b.quit)
-	for _, ch := range b.subs {
+	a.closed = true
+	close(a.quit)
+	for _, ch := range a.subs {
 		for _, sub := range ch {
 			close(sub)
 		}
 	}
-	b.saveTopicQueues()
+	a.saveTopicQueues()
 }
 
-func (b *Agent[T]) saveTopicQueues() {
-	for topic, queue := range b.topicQueue {
-		filePath := b.logDir + "/" + topic + ".txt"
+func (a *Agent[T]) saveTopicQueues() {
+	for topic, queue := range a.topicQueue {
+		filePath := a.logDir + "/" + topic + ".txt"
 		_, err := os.Stat(filePath)
 		fileExists := !os.IsNotExist(err)
 
 		for _, msg := range queue {
 			if !fileExists {
-				if err := b.writeToFile(filePath, msg); err != nil {
+				if err := a.writeToFile(filePath, msg); err != nil {
 					log.Println(err)
 				}
 			}
